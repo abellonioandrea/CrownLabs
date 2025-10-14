@@ -1,32 +1,40 @@
-const { createGraphQLSchema } = require('openapi-to-graphql');
 const { stitchSchemas } = require('@graphql-tools/stitch');
 const { RenameRootFields } = require('@graphql-tools/wrap');
 const { RenameRootTypes } = require('@graphql-tools/wrap');
-const { decorateBaseSchema } = require('./decorateBaseSchema');
+const { loadGraphQLSchemaFromOpenAPI } = require('@omnigraph/openapi');
+const { getMesh } = require('@graphql-mesh/runtime');
+const { printSchemaWithDirectives } = require('@graphql-tools/utils');
 const { wrappers } = require('./wrappers');
+const { decorateBaseSchema } = require('./decorateBaseSchema');
 
 const basicHeaders = {
   'Content-Type': 'application/json',
 };
 
 async function oasToGraphQlSchema(oas, baseUrl, token, operationIdFieldNames) {
-  const schema = await createGraphQLSchema(oas, {
-    baseUrl,
-    viewer: false,
-    headers: token ? {
-      Authorization: `Bearer ${token}`,
-      ...basicHeaders,
-    } : basicHeaders,
-    tokenJSONpath: '$.token',
-    simpleEnumValues: true,
-    operationIdFieldNames,
+  const aa = loadGraphQLSchemaFromOpenAPI('kubeApi', {
+    source: {
+      schema: oas,
+      name: 'kubeApi',
+      baseUrl,
+      operationIdFieldNames,
+      fetch: async (url, options) => {
+        options.headers = {
+          ...basicHeaders,
+          ...(options.headers || {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
+        return fetch(url, options);
+      },
+    },
+    cwd: process.cwd(),
   });
-  return schema;
+  return aa;
 }
 
 exports.createSchema = async (oas, kubeApiUrl, token) => {
-  let baseSchema = (await oasToGraphQlSchema(oas, kubeApiUrl, token)).schema;
-
+  let baseSchema = (await oasToGraphQlSchema(oas, kubeApiUrl, token));
+  console.log(baseSchema);
   wrappers.forEach(
     ({
       type, fieldWrapper, nameWrapper, queryFieldsRequired,
