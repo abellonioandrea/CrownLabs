@@ -205,10 +205,7 @@ func (r *InstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	}(instance.DeepCopy(), &instance)
 
 	// Retrieve the template associated with the current instance.
-	templateName := types.NamespacedName{
-		Namespace: instance.Spec.Template.Namespace,
-		Name:      instance.Spec.Template.Name,
-	}
+	templateName := forge.NamespacedNameFromGenericRef(instance.Spec.Template)
 	var template clv1alpha2.Template
 	if err := r.Get(ctx, templateName, &template); err != nil {
 		log.Error(err, "failed retrieving the instance template", "template", templateName)
@@ -220,7 +217,7 @@ func (r *InstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	log.Info("successfully retrieved the instance template")
 
 	// Retrieve the tenant associated with the current instance.
-	tenantName := types.NamespacedName{Name: instance.Spec.Tenant.Name}
+	tenantName := forge.NamespacedNameFromGenericRef(instance.Spec.Tenant)
 	var tenant clv1alpha2.Tenant
 	if err := r.Get(ctx, tenantName, &tenant); err != nil {
 		log.Error(err, "failed retrieving the instance tenant", "tenant", tenantName)
@@ -230,6 +227,29 @@ func (r *InstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	ctx, log = clctx.TenantInto(ctx, &tenant)
 	tracer.Step("retrieved the instance tenant")
 	log.Info("successfully retrieved the instance tenant")
+
+	// Enforce the LastPoweredOffTimestampAnnotation based on the instance running state
+	hasTimestamp := instance.Annotations != nil && instance.Annotations[forge.LastPoweredOffTimestampAnnotation] != ""
+
+	annotationsUpdated := instance.Spec.Running == hasTimestamp
+
+	if annotationsUpdated {
+		original := instance.DeepCopy()
+		if instance.Annotations == nil {
+			instance.Annotations = make(map[string]string)
+		}
+		if !instance.Spec.Running {
+			instance.Annotations[forge.LastPoweredOffTimestampAnnotation] = time.Now().Format(time.RFC3339)
+		} else {
+			delete(instance.Annotations, forge.LastPoweredOffTimestampAnnotation)
+		}
+		if err := r.Patch(ctx, &instance, client.MergeFrom(original)); err != nil {
+			log.Error(err, "failed to update the instance annotations")
+			return ctrl.Result{}, err
+		}
+		tracer.Step("instance annotations updated")
+		log.Info("instance annotations correctly configured")
+	}
 
 	// Patch the instance labels to allow for easier categorization.
 	labels, updated := forge.InstanceLabels(instance.GetLabels(), &template, &instance)

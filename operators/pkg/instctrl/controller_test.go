@@ -64,12 +64,12 @@ var _ = Describe("The instance-controller Reconcile method", func() {
 
 	RunReconciler := func() error {
 		_, err := instanceReconciler.Reconcile(ctx, reconcile.Request{
-			NamespacedName: forge.NamespacedName(&instance),
+			NamespacedName: forge.NamespacedNameFromObject(&instance),
 		})
 		if err != nil {
 			return err
 		}
-		return k8sClient.Get(ctx, forge.NamespacedName(&instance), &instance)
+		return k8sClient.Get(ctx, forge.NamespacedNameFromObject(&instance), &instance)
 	}
 
 	BeforeEach(func() {
@@ -547,6 +547,35 @@ var _ = Describe("The instance-controller Reconcile method", func() {
 				Expect(RunReconciler()).To(Succeed())
 				Expect(instance.Spec.PrettyName).To(Equal(prettyNameTest))
 			})
+		})
+	})
+
+	Context("Instance off annotation handling", func() {
+		BeforeEach(func() {
+			testName = "test-instance-off-annotation"
+			runInstance = true
+		})
+
+		It("should set annotation when running changes to false and remove it when changes to true", func() {
+			Expect(RunReconciler()).To(Succeed())
+			Expect(instance.Annotations).NotTo(HaveKey(forge.LastPoweredOffTimestampAnnotation))
+
+			By("Setting instance running to false")
+			instance.Spec.Running = false
+			Expect(k8sClient.Update(ctx, &instance)).To(Succeed())
+			Expect(RunReconciler()).To(Succeed())
+			Expect(instance.Annotations).To(HaveKey(forge.LastPoweredOffTimestampAnnotation))
+			firstTimestamp := instance.Annotations[forge.LastPoweredOffTimestampAnnotation]
+
+			By("Reconciling again without changing state (should not change annotation)")
+			Expect(RunReconciler()).To(Succeed())
+			Expect(instance.Annotations).To(HaveKeyWithValue(forge.LastPoweredOffTimestampAnnotation, firstTimestamp))
+
+			By("Setting instance running to true")
+			instance.Spec.Running = true
+			Expect(k8sClient.Update(ctx, &instance)).To(Succeed())
+			Expect(RunReconciler()).To(Succeed())
+			Expect(instance.Annotations).NotTo(HaveKey(forge.LastPoweredOffTimestampAnnotation))
 		})
 	})
 
