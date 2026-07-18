@@ -13,7 +13,7 @@ const NodeSelectorIcon: FC<INodeSelectorIconProps> = ({ ...props }) => {
   const { nodeSelector, isOnWorkspace } = props;
 
   const displaySel = Object.entries(nodeSelector)
-    .filter(([k, v]) => k.includes('crownlabsPolitoIt'))
+    .filter(([k]) => k.includes('crownlabsPolitoIt'))
     .map(([k, v]) => `${cleanupLabels(k)}=${v}`)
     .join('\n');
 
