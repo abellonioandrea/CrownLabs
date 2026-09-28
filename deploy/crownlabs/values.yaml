@@ -148,7 +148,7 @@ operator:
           imageListName: harbor-containerdisks
           project: crownlabs-containerdisks
         - name: snapshots-workspace
-          type: public-snapshots
+          type: instancesnapshot
           namespace: cldprog-5-block-vms-tests
           imageListName: public-snapshots
   webhook:
