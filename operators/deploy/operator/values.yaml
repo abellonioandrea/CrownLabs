@@ -13,7 +13,7 @@ configurations:
     pmp: false
     keycloak: true
     webhooks: false
-    imageList: false
+    imageList: true
 
   # Static labels added to tenant namespaces, after the chart prepends targetLabel.
   tenantNamespaceCommonLabels: crownlabs.polito.it/gw-access=crownlabs-main-production,crownlabs.polito.it/instance-resources-replication=true
