@@ -151,7 +151,7 @@ operator:
           # Read completed snapshots from their DataVolume artifacts in this namespace.
           type: public-snapshots
           namespace: cldprog-5-block-vms-tests
-          imageListName: public-snapshots
+          imageListName: public-local-snapshots
   webhook:
     deployment:
       webhookBypassGroups: system:masters,system:serviceaccounts,kubernetes:admin

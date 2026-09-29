@@ -77,7 +77,7 @@ configurations:
         # Read completed snapshots from their DataVolume artifacts in this namespace.
         type: public-snapshots
         namespace: cldprog-5-block-vms-tests
-        imageListName: public-snapshots
+        imageListName: public-local-snapshots
 
   pvcMirrorProvisioner:
     provisionerName: pmp.crownlabs.polito.it
