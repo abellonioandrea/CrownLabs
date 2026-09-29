@@ -118,8 +118,8 @@ operator:
       pmp: true
       keycloak: true
       webhooks: true
-      imageList: false
-      instancesnapshot: true
+      imageList: true
+      instanceSnapshot: true
     keycloak:
       url: "https://auth.crownlabs.example.com/"
       realm: crownlabs

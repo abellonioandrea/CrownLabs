@@ -9,6 +9,7 @@ configurations:
     tenant: true
     workspace: true
     instance: true
+    instanceSnapshot: true
     sharedvolume: true
     pmp: false
     keycloak: true

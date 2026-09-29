@@ -19,9 +19,11 @@ import (
 	"strings"
 
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	clv1alpha2 "github.com/netgroup-polito/CrownLabs/operators/api/v1alpha2"
 	instsnapwebhook "github.com/netgroup-polito/CrownLabs/operators/pkg/controller/instancesnapshot/webhook"
+	"github.com/netgroup-polito/CrownLabs/operators/pkg/instsnapctrl"
 )
 
 var (
@@ -54,4 +56,21 @@ func setupInstanceSnapshotWebhook(mgr ctrl.Manager) error {
 		}).
 		WithValidatorCustomPath(InstanceSnapshotValidatorWebhookPath).
 		Complete()
+}
+
+// setupInstanceSnapshot configures the InstanceSnapshot controller and webhook.
+func setupInstanceSnapshot(mgr manager.Manager) error {
+	if err := (&instsnapctrl.InstanceSnapshotReconciler{
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		EventsRecorder: mgr.GetEventRecorderFor("InstanceSnapshot"),
+	}).SetupWithManager(mgr, 1); err != nil {
+		return err
+	}
+
+	if enableWebhooks {
+		return setupInstanceSnapshotWebhook(mgr)
+	}
+
+	return nil
 }

@@ -36,10 +36,6 @@ func setupInstance(mgr manager.Manager) error {
 		if err := setupInstanceWebhook(mgr); err != nil {
 			return err
 		}
-
-		if err := setupInstanceSnapshotWebhook(mgr); err != nil {
-			return err
-		}
 	}
 
 	return nil
