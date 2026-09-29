@@ -74,9 +74,9 @@ configurations:
         imageListName: harbor-containerdisks
         project: crownlabs-containerdisks
       - name: snapshots-workspace
-        type: instancesnapshot
+        # Read completed snapshots from their DataVolume artifacts in this namespace.
+        type: public-snapshots
         namespace: cldprog-5-block-vms-tests
-        registryName: harbor.ng.crownlabs.polito.it
         imageListName: public-snapshots
 
   pvcMirrorProvisioner:

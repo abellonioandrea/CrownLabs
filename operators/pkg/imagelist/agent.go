@@ -28,6 +28,7 @@ import (
 )
 
 // RegistryConfig contains the configuration for a single image list source.
+// Type public-snapshots reads DataVolume artifacts; instancesnapshot reads registry export Jobs.
 type RegistryConfig struct {
 	Name          string `json:"name"`
 	Type          string `json:"type"`
@@ -37,7 +38,7 @@ type RegistryConfig struct {
 	Password      string `json:"password"`
 	ImageListName string `json:"imageListName"`
 	Project       string `json:"project,omitempty"`   // Only for Harbor
-	Namespace     string `json:"namespace,omitempty"` // Only for InstanceSnapshot
+	Namespace     string `json:"namespace,omitempty"` // Required for public-snapshots and instancesnapshot sources.
 }
 
 // UpdateResult represents the result of updating a single image list.
@@ -233,15 +234,10 @@ func ProcessSingleRegistryConfigWithItems(ctx context.Context, regConfig *Regist
 	}
 
 	imageListUpdater := NewUpdater([]Requestor{requestor}, regConfig.ImageListName, regConfig.Project, imageListSaver, regConfig.RegistryName, log.WithName(regConfig.Name).WithName("updater"))
-	if err := imageListUpdater.Update(ctx); err != nil {
+	items, err := imageListUpdater.updateWithItems(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("failed to update the ImageList resource: %w", err)
 	}
 
-	// Return the items persisted by the updater to avoid querying the registry twice.
-	var imageList clv1alpha1.ImageList
-	if err := k8sClient.Get(ctx, client.ObjectKey{Name: regConfig.ImageListName}, &imageList); err != nil {
-		return nil, fmt.Errorf("failed to retrieve updated ImageList resource: %w", err)
-	}
-
-	return imageList.Spec.Images, nil
+	return items, nil
 }

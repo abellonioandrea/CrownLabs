@@ -148,7 +148,8 @@ operator:
           imageListName: harbor-containerdisks
           project: crownlabs-containerdisks
         - name: snapshots-workspace
-          type: instancesnapshot
+          # Read completed snapshots from their DataVolume artifacts in this namespace.
+          type: public-snapshots
           namespace: cldprog-5-block-vms-tests
           imageListName: public-snapshots
   webhook:
