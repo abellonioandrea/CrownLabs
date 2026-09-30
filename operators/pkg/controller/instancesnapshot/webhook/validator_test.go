@@ -44,6 +44,7 @@ var _ = Describe("InstanceSnapshotValidator", func() {
 		validator = &webhook.InstanceSnapshotValidator{
 			Client:                  fake.NewClientBuilder().WithScheme(scheme).WithObjects(tenant).Build(),
 			PublicSnapshotNamespace: testPublicNamespace,
+			PublisherGroup:          testPublisherGroup,
 			BypassGroups:            []string{testBypassGroup},
 		}
 	})
@@ -79,13 +80,20 @@ var _ = Describe("InstanceSnapshotValidator", func() {
 			Groups          []string
 			Owner           string
 			SourceNamespace string
+			// Destination is the namespace the snapshot is created in, the tenant one if empty.
+			Destination string
 			// ExpectedError is empty when the request must be admitted.
 			ExpectedError string
 		}
 
 		DescribeTable("Correctly decides whether the source instance can be snapshotted",
 			func(c CreateCase) {
-				_, err := validator.ValidateCreate(requestFrom(c.Username, c.Groups...), snapshotOf(c.Owner, c.SourceNamespace))
+				snapshot := snapshotOf(c.Owner, c.SourceNamespace)
+				if c.Destination != "" {
+					snapshot.Namespace = c.Destination
+				}
+
+				_, err := validator.ValidateCreate(requestFrom(c.Username, c.Groups...), snapshot)
 
 				if c.ExpectedError == "" {
 					Expect(err).NotTo(HaveOccurred())
@@ -121,6 +129,15 @@ var _ = Describe("InstanceSnapshotValidator", func() {
 			Entry("When the requester has no Tenant behind it", CreateCase{
 				Username: testOtherTenant, Owner: testOtherTenant, SourceNamespace: testTenantNamespace,
 				ExpectedError: "failed to get tenant",
+			}),
+			Entry("When a publisher publishes into the public catalog", CreateCase{
+				Username: testTenant, Groups: []string{testPublisherGroup}, Owner: testTenant,
+				SourceNamespace: testTenantNamespace, Destination: testPublicNamespace,
+			}),
+			Entry("When somebody else publishes into the public catalog", CreateCase{
+				Username: testTenant, Owner: testTenant,
+				SourceNamespace: testTenantNamespace, Destination: testPublicNamespace,
+				ExpectedError: "only snapshot publishers",
 			}),
 			Entry("When the requester belongs to a bypass group", CreateCase{
 				Username: testTenant, Groups: []string{testBypassGroup}, SourceNamespace: testOtherTenantNamespace,

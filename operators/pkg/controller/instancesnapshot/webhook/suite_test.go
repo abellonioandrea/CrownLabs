@@ -42,6 +42,7 @@ const (
 	testTenantNamespace      = "tenant-" + testTenant
 	testOtherTenantNamespace = "tenant-" + testOtherTenant
 	testWorkspaceNamespace   = "workspace-" + testWorkspace
+	testPublisherGroup       = "kubernetes:image-publisher"
 )
 
 func TestInstanceSnapshotValidator(t *testing.T) {

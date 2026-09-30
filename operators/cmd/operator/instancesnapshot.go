@@ -28,6 +28,7 @@ import (
 
 var (
 	snapshotPublicNamespace     string
+	snapshotPublisherGroup      string
 	snapshotWebhookBypassGroups string
 )
 
@@ -43,6 +44,8 @@ func init() {
 		"The namespace hosting the public snapshot catalog, whose volumes every tenant is entitled to read")
 	flag.StringVar(&snapshotWebhookBypassGroups, "snapshot-webhook-bypass-groups", "system:masters",
 		"The list of groups which can skip the snapshot scope checks, comma separated values")
+	flag.StringVar(&snapshotPublisherGroup, "snapshot-publisher-group", "",
+		"The group whose members can publish snapshots into the public catalog (none if empty, bypass groups aside)")
 }
 
 // setupInstanceSnapshotWebhook configures the Webhook that validates the scope of InstanceSnapshot resources.
@@ -52,6 +55,7 @@ func setupInstanceSnapshotWebhook(mgr ctrl.Manager) error {
 		WithValidator(&instsnapwebhook.InstanceSnapshotValidator{
 			Client:                  mgr.GetClient(),
 			PublicSnapshotNamespace: snapshotPublicNamespace,
+			PublisherGroup:          snapshotPublisherGroup,
 			BypassGroups:            strings.Split(snapshotWebhookBypassGroups, ","),
 		}).
 		WithValidatorCustomPath(InstanceSnapshotValidatorWebhookPath).

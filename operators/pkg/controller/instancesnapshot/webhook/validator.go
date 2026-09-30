@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,13 +38,14 @@ import (
 // cdi.kubevirt.io/datavolumes/source, so by the time the controller runs the identity of the
 // requester is gone and neither RBAC nor CDI can tell on whose behalf they are acting.
 //
-// The destination of the snapshot is deliberately left out: it is the namespace the InstanceSnapshot
-// itself is created in, which the API server already gates through RBAC. Keeping it there is also
-// what lets administrators publish into the public catalog through a plain RoleBinding.
+// The destination of the snapshot is the namespace the InstanceSnapshot itself is created in, which the
+// API server already gates through RBAC. The public catalog is checked here as well: every tenant boots
+// from it, so publishing is reserved to the members of PublisherGroup.
 type InstanceSnapshotValidator struct {
 	admission.CustomValidator
 	Client                  client.Client
 	PublicSnapshotNamespace string
+	PublisherGroup          string
 	BypassGroups            []string
 }
 
@@ -67,6 +69,10 @@ func (isv *InstanceSnapshotValidator) ValidateCreate(
 	}
 
 	if err := validateOwner(snapshot, req.UserInfo.Username); err != nil {
+		return nil, err
+	}
+
+	if err := isv.validateDestination(snapshot, req.UserInfo.Groups); err != nil {
 		return nil, err
 	}
 
@@ -112,6 +118,19 @@ func validateOwner(snapshot *clv1alpha2.InstanceSnapshot, username string) error
 
 	if owner != username {
 		return fmt.Errorf("label %s is %q, but the snapshot is being created by %q", forge.LabelTenantKey, owner, username)
+	}
+
+	return nil
+}
+
+// validateDestination checks that only publishers create snapshots in the public catalog.
+func (isv *InstanceSnapshotValidator) validateDestination(snapshot *clv1alpha2.InstanceSnapshot, groups []string) error {
+	if snapshot.Namespace != isv.PublicSnapshotNamespace {
+		return nil
+	}
+
+	if isv.PublisherGroup == "" || !slices.Contains(groups, isv.PublisherGroup) {
+		return fmt.Errorf("only snapshot publishers can create snapshots in the public catalog %q", isv.PublicSnapshotNamespace)
 	}
 
 	return nil
