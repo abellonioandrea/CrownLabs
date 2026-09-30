@@ -38,11 +38,6 @@ type InstanceSnapshotSpec struct {
 	// +optional
 	// +kubebuilder:validation:MaxLength=512
 	Description string `json:"description,omitempty"`
-
-	// Tenant is the reference to the Tenant who created the snapshot.
-	// If omitted, the source Instance tenant is used only for artifact metadata.
-	// +optional
-	Tenant GenericRef `json:"tenantRef,omitempty"`
 }
 
 // SnapshotPhase describes the current phase of the InstanceSnapshot.
@@ -85,7 +80,7 @@ type InstanceSnapshotStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName="isnap"
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
-// +kubebuilder:printcolumn:name="Tenant",type=string,JSONPath=`.spec.tenantRef.name`
+// +kubebuilder:printcolumn:name="Tenant",type=string,JSONPath=`.metadata.labels.crownlabs\.polito\.it/tenant`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // InstanceSnapshot is the Schema for the instancesnapshots API.

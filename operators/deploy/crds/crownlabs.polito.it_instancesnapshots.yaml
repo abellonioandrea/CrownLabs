@@ -20,7 +20,7 @@ spec:
     - jsonPath: .status.phase
       name: Phase
       type: string
-    - jsonPath: .spec.tenantRef.name
+    - jsonPath: .metadata.labels.crownlabs\.polito\.it/tenant
       name: Tenant
       type: string
     - jsonPath: .metadata.creationTimestamp
@@ -70,22 +70,6 @@ spec:
               instanceRef:
                 description: Instance is the reference to the persistent VM instance
                   to be snapshotted.
-                properties:
-                  name:
-                    description: The name of the resource to be referenced.
-                    type: string
-                  namespace:
-                    description: |-
-                      The namespace containing the resource to be referenced. It should be left
-                      empty in case of cluster-wide resources.
-                    type: string
-                required:
-                - name
-                type: object
-              tenantRef:
-                description: |-
-                  Tenant is the reference to the Tenant who created the snapshot.
-                  If omitted, the source Instance tenant is used only for artifact metadata.
                 properties:
                   name:
                     description: The name of the resource to be referenced.

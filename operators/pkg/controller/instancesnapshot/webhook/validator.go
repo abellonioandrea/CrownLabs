@@ -47,7 +47,7 @@ type InstanceSnapshotValidator struct {
 	BypassGroups            []string
 }
 
-// ValidateCreate validates the scope of a newly created InstanceSnapshot.
+// ValidateCreate validates the owner and the scope of a newly created InstanceSnapshot.
 func (isv *InstanceSnapshotValidator) ValidateCreate(
 	ctx context.Context,
 	obj runtime.Object,
@@ -57,11 +57,25 @@ func (isv *InstanceSnapshotValidator) ValidateCreate(
 		return nil, fmt.Errorf("expected InstanceSnapshot resource but got %T", obj)
 	}
 
-	return nil, isv.validateSource(ctx, snapshot)
+	req, err := admission.RequestFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get admission request from context: %w", err)
+	}
+
+	if utils.MatchOneInStringSlices(isv.BypassGroups, req.UserInfo.Groups) {
+		return nil, nil
+	}
+
+	if err := validateOwner(snapshot, req.UserInfo.Username); err != nil {
+		return nil, err
+	}
+
+	return nil, isv.validateSource(ctx, snapshot, req.UserInfo.Username)
 }
 
 // ValidateUpdate rejects every spec change after creation. Snapshot metadata and source references
 // are consumed when the DataVolume is created and must remain consistent with the artifact.
+// The tenant label is frozen as well, otherwise the owner checked at creation could be rewritten.
 func (isv *InstanceSnapshotValidator) ValidateUpdate(
 	_ context.Context,
 	oldObj, newObj runtime.Object,
@@ -80,23 +94,35 @@ func (isv *InstanceSnapshotValidator) ValidateUpdate(
 		return nil, fmt.Errorf("InstanceSnapshot spec is immutable")
 	}
 
+	if oldSnapshot.Labels[forge.LabelTenantKey] != newSnapshot.Labels[forge.LabelTenantKey] {
+		return nil, fmt.Errorf("label %s is immutable", forge.LabelTenantKey)
+	}
+
 	return nil, nil
 }
 
-// validateSource checks that the actor is entitled to read the disk of the referenced instance.
+// validateOwner checks that the snapshot is labeled with the tenant creating it.
+// Also, it makes sure a snapshot can only be created carrying the name of its
+// creator, and the label can no longer change afterwards.
+func validateOwner(snapshot *clv1alpha2.InstanceSnapshot, username string) error {
+	owner, ok := snapshot.Labels[forge.LabelTenantKey]
+	if !ok {
+		return fmt.Errorf("label %s must be set to the tenant creating the snapshot", forge.LabelTenantKey)
+	}
+
+	if owner != username {
+		return fmt.Errorf("label %s is %q, but the snapshot is being created by %q", forge.LabelTenantKey, owner, username)
+	}
+
+	return nil
+}
+
+// validateSource checks that the requester is entitled to read the disk of the referenced instance.
 func (isv *InstanceSnapshotValidator) validateSource(
 	ctx context.Context,
 	snapshot *clv1alpha2.InstanceSnapshot,
+	username string,
 ) error {
-	req, err := admission.RequestFromContext(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get admission request from context: %w", err)
-	}
-
-	if utils.MatchOneInStringSlices(isv.BypassGroups, req.UserInfo.Groups) {
-		return nil
-	}
-
 	// The reference is read with no defaulting.
 	srcNamespace := snapshot.Spec.Instance.Namespace
 	if srcNamespace == "" {
@@ -104,8 +130,8 @@ func (isv *InstanceSnapshotValidator) validateSource(
 	}
 
 	tenant := &clv1alpha2.Tenant{}
-	if err := isv.Client.Get(ctx, types.NamespacedName{Name: req.UserInfo.Username}, tenant); err != nil {
-		return fmt.Errorf("failed to get tenant %s: %w", req.UserInfo.Username, err)
+	if err := isv.Client.Get(ctx, types.NamespacedName{Name: username}, tenant); err != nil {
+		return fmt.Errorf("failed to get tenant %s: %w", username, err)
 	}
 
 	if !forge.TenantCanReadNamespace(tenant, srcNamespace, isv.PublicSnapshotNamespace) {

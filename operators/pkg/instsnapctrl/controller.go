@@ -209,7 +209,7 @@ func (r *InstanceSnapshotReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			},
 		}
 
-		r.populateMetadata(&snapshot, &instance, &dv)
+		r.populateMetadata(&snapshot, &dv)
 
 		if err := ctrlutil.SetControllerReference(&snapshot, &dv, r.Scheme); err != nil {
 			return ctrl.Result{}, err
@@ -267,7 +267,7 @@ func (r *InstanceSnapshotReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	return ctrl.Result{}, nil
 }
-func (r *InstanceSnapshotReconciler) populateMetadata(snapshot *clv1alpha2.InstanceSnapshot, instance *clv1alpha2.Instance, dv *cdiv1beta1.DataVolume) {
+func (r *InstanceSnapshotReconciler) populateMetadata(snapshot *clv1alpha2.InstanceSnapshot, dv *cdiv1beta1.DataVolume) {
 	if snapshot.Spec.ImageName != "" {
 		dv.Annotations["crownlabs.polito.it/image-name"] = snapshot.Spec.ImageName
 	}
@@ -275,12 +275,8 @@ func (r *InstanceSnapshotReconciler) populateMetadata(snapshot *clv1alpha2.Insta
 		dv.Annotations["crownlabs.polito.it/snapshot-description"] = snapshot.Spec.Description
 	}
 
-	tenant := snapshot.Spec.Tenant
-	if tenant.Name == "" {
-		tenant = instance.Spec.Tenant
-	}
-	if tenant.Name != "" {
-		dv.Annotations["crownlabs.polito.it/snapshot-tenant"] = tenant.Name
+	if tenant := snapshot.Labels[forge.LabelTenantKey]; tenant != "" {
+		dv.Annotations["crownlabs.polito.it/snapshot-tenant"] = tenant
 	}
 }
 

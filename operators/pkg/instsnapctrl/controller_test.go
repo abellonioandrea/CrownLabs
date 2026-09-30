@@ -182,6 +182,17 @@ var _ = Describe("The InstanceSnapshot controller", func() {
 				types.NamespacedName{Namespace: tenantNamespace, Name: snapshotName}, &snap)).To(Succeed())
 			Expect(metav1.IsControlledBy(&dv, &snap)).To(BeTrue())
 		})
+
+		It("Should record on the DataVolume the tenant the snapshot is labeled with", func() {
+			snap := snapshot()
+			snap.Labels = map[string]string{forge.LabelTenantKey: "tester"}
+			cl := reconcile(snap, stoppedInstance(), singleEnvTemplate(), persistentVolumeClaim(sourcePVCName))
+
+			var dv cdiv1beta1.DataVolume
+			Expect(cl.Get(context.Background(),
+				types.NamespacedName{Namespace: tenantNamespace, Name: artifactName}, &dv)).To(Succeed())
+			Expect(dv.Annotations).To(HaveKeyWithValue("crownlabs.polito.it/snapshot-tenant", "tester"))
+		})
 	})
 
 	Describe("Resolving the resources of an instance whose name contains a dot", func() {

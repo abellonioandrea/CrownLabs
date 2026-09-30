@@ -30,6 +30,7 @@ var (
 
 const (
 	testTenant          = "tester"
+	testOtherTenant     = "other-tester"
 	testWorkspace       = "test-workspace"
 	testInstance        = "test-instance"
 	testSnapshot        = "test-snapshot"
@@ -39,7 +40,7 @@ const (
 	testServiceAccount  = "system:serviceaccount:crownlabs:instance-operator"
 
 	testTenantNamespace      = "tenant-" + testTenant
-	testOtherTenantNamespace = "tenant-other-tester"
+	testOtherTenantNamespace = "tenant-" + testOtherTenant
 	testWorkspaceNamespace   = "workspace-" + testWorkspace
 )
 

@@ -27,6 +27,7 @@ import (
 
 	clv1alpha2 "github.com/netgroup-polito/CrownLabs/operators/api/v1alpha2"
 	"github.com/netgroup-polito/CrownLabs/operators/pkg/controller/instancesnapshot/webhook"
+	"github.com/netgroup-polito/CrownLabs/operators/pkg/forge"
 )
 
 var _ = Describe("InstanceSnapshotValidator", func() {
@@ -56,22 +57,27 @@ var _ = Describe("InstanceSnapshotValidator", func() {
 		})
 	}
 
-	// snapshotOf returns a snapshot, created in the tenant namespace, of the instance living in the
-	// given namespace.
-	snapshotOf := func(sourceNamespace string) *clv1alpha2.InstanceSnapshot {
-		return &clv1alpha2.InstanceSnapshot{
+	// snapshotOf returns a snapshot, created in the tenant namespace and labeled with the given owner
+	// (none if empty), of the instance living in the given namespace.
+	snapshotOf := func(owner, sourceNamespace string) *clv1alpha2.InstanceSnapshot {
+		snapshot := &clv1alpha2.InstanceSnapshot{
 			ObjectMeta: metav1.ObjectMeta{Name: testSnapshot, Namespace: testTenantNamespace},
 			Spec: clv1alpha2.InstanceSnapshotSpec{
 				Instance:    clv1alpha2.GenericRef{Name: testInstance, Namespace: sourceNamespace},
 				Environment: testEnvironment,
 			},
 		}
+		if owner != "" {
+			snapshot.Labels = map[string]string{forge.LabelTenantKey: owner}
+		}
+		return snapshot
 	}
 
 	Describe("The ValidateCreate function", func() {
 		type CreateCase struct {
 			Username        string
 			Groups          []string
+			Owner           string
 			SourceNamespace string
 			// ExpectedError is empty when the request must be admitted.
 			ExpectedError string
@@ -79,7 +85,7 @@ var _ = Describe("InstanceSnapshotValidator", func() {
 
 		DescribeTable("Correctly decides whether the source instance can be snapshotted",
 			func(c CreateCase) {
-				_, err := validator.ValidateCreate(requestFrom(c.Username, c.Groups...), snapshotOf(c.SourceNamespace))
+				_, err := validator.ValidateCreate(requestFrom(c.Username, c.Groups...), snapshotOf(c.Owner, c.SourceNamespace))
 
 				if c.ExpectedError == "" {
 					Expect(err).NotTo(HaveOccurred())
@@ -88,24 +94,32 @@ var _ = Describe("InstanceSnapshotValidator", func() {
 				Expect(err).To(MatchError(ContainSubstring(c.ExpectedError)))
 			},
 			Entry("When the instance lives in the tenant namespace", CreateCase{
-				Username: testTenant, SourceNamespace: testTenantNamespace,
+				Username: testTenant, Owner: testTenant, SourceNamespace: testTenantNamespace,
 			}),
 			Entry("When the instance lives in a workspace the tenant is enrolled in", CreateCase{
-				Username: testTenant, SourceNamespace: testWorkspaceNamespace,
+				Username: testTenant, Owner: testTenant, SourceNamespace: testWorkspaceNamespace,
 			}),
 			Entry("When the instance lives in the public catalog", CreateCase{
-				Username: testTenant, SourceNamespace: testPublicNamespace,
+				Username: testTenant, Owner: testTenant, SourceNamespace: testPublicNamespace,
 			}),
 			Entry("When the instance belongs to another tenant", CreateCase{
-				Username: testTenant, SourceNamespace: testOtherTenantNamespace,
+				Username: testTenant, Owner: testTenant, SourceNamespace: testOtherTenantNamespace,
 				ExpectedError: "cannot snapshot instance",
 			}),
 			Entry("When the source namespace is left empty", CreateCase{
-				Username: testTenant, SourceNamespace: "",
+				Username: testTenant, Owner: testTenant, SourceNamespace: "",
 				ExpectedError: "must be set explicitly",
 			}),
+			Entry("When the tenant label is missing", CreateCase{
+				Username: testTenant, SourceNamespace: testTenantNamespace,
+				ExpectedError: "must be set to the tenant creating the snapshot",
+			}),
+			Entry("When the tenant label names somebody else", CreateCase{
+				Username: testTenant, Owner: testOtherTenant, SourceNamespace: testTenantNamespace,
+				ExpectedError: "but the snapshot is being created by",
+			}),
 			Entry("When the requester has no Tenant behind it", CreateCase{
-				Username: testServiceAccount, SourceNamespace: testTenantNamespace,
+				Username: testOtherTenant, Owner: testOtherTenant, SourceNamespace: testTenantNamespace,
 				ExpectedError: "failed to get tenant",
 			}),
 			Entry("When the requester belongs to a bypass group", CreateCase{
@@ -118,7 +132,7 @@ var _ = Describe("InstanceSnapshotValidator", func() {
 		It("Should accept updates leaving the source untouched, even from identities with no Tenant", func() {
 			// This is what the snapshot controller does when it adds its finalizer: it acts as a
 			// service account, which would be rejected were the scope checked again.
-			oldSnapshot := snapshotOf(testTenantNamespace)
+			oldSnapshot := snapshotOf(testTenant, testTenantNamespace)
 			newSnapshot := oldSnapshot.DeepCopy()
 			newSnapshot.Finalizers = []string{"instancesnapshot.crownlabs.polito.it/finalizer"}
 
@@ -128,17 +142,29 @@ var _ = Describe("InstanceSnapshotValidator", func() {
 
 		It("Should reject repointing the source at somebody else's instance", func() {
 			_, err := validator.ValidateUpdate(requestFrom(testTenant),
-				snapshotOf(testTenantNamespace), snapshotOf(testOtherTenantNamespace))
+				snapshotOf(testTenant, testTenantNamespace), snapshotOf(testTenant, testOtherTenantNamespace))
 			Expect(err).To(MatchError("InstanceSnapshot spec is immutable"))
 		})
 
 		It("Should reject changing snapshot metadata", func() {
-			oldSnapshot := snapshotOf(testTenantNamespace)
+			oldSnapshot := snapshotOf(testTenant, testTenantNamespace)
 			newSnapshot := oldSnapshot.DeepCopy()
 			newSnapshot.Spec.Description = "changed after creation"
 
 			_, err := validator.ValidateUpdate(requestFrom(testTenant), oldSnapshot, newSnapshot)
 			Expect(err).To(MatchError("InstanceSnapshot spec is immutable"))
+		})
+
+		It("Should reject handing the snapshot over to another tenant", func() {
+			_, err := validator.ValidateUpdate(requestFrom(testTenant),
+				snapshotOf(testTenant, testTenantNamespace), snapshotOf(testOtherTenant, testTenantNamespace))
+			Expect(err).To(MatchError(ContainSubstring("is immutable")))
+		})
+
+		It("Should reject removing the tenant label", func() {
+			_, err := validator.ValidateUpdate(requestFrom(testTenant),
+				snapshotOf(testTenant, testTenantNamespace), snapshotOf("", testTenantNamespace))
+			Expect(err).To(MatchError(ContainSubstring("is immutable")))
 		})
 	})
 })
