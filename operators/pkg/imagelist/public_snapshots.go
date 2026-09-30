@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	clv1alpha1 "github.com/netgroup-polito/CrownLabs/operators/api/v1alpha1"
@@ -55,6 +56,7 @@ func (r *PublicSnapshotImageListSource) GetImageList(ctx context.Context) ([]clv
 	}
 
 	versionsByName := make(map[string][]string)
+	sizesByName := make(map[string]map[string]resource.Quantity)
 	for i := range snapshots.Items {
 		snapshot := &snapshots.Items[i]
 		if snapshot.Status.Phase != clv1alpha2.SnapshotPhaseCompleted || !snapshot.DeletionTimestamp.IsZero() {
@@ -68,6 +70,16 @@ func (r *PublicSnapshotImageListSource) GetImageList(ctx context.Context) ([]clv
 		}
 		name, version := publicSnapshotNameAndVersion(snapshot.Name, ref.Name)
 		versionsByName[name] = append(versionsByName[name], version)
+		if size := snapshot.Status.Artifact.VolumeSize; size.Sign() > 0 {
+			if sizesByName[name] == nil {
+				sizesByName[name] = make(map[string]resource.Quantity)
+			}
+			// Multiple snapshots can reference the same artifact. Keep the largest
+			// reported capacity so the result does not depend on list order.
+			if previous, ok := sizesByName[name][version]; !ok || size.Cmp(previous) > 0 {
+				sizesByName[name][version] = size
+			}
+		}
 	}
 
 	images := make([]clv1alpha1.ImageListItem, 0, len(versionsByName))
@@ -76,10 +88,16 @@ func (r *PublicSnapshotImageListSource) GetImageList(ctx context.Context) ([]clv
 		// or value encoded by the snapshot creator. An unversioned choice sorts last.
 		sort.Sort(sort.Reverse(sort.StringSlice(versions)))
 		versions = slices.Compact(versions)
+		var details []clv1alpha1.ImageVersionDetails
+		for _, version := range versions {
+			if size, ok := sizesByName[name][version]; ok {
+				details = append(details, clv1alpha1.ImageVersionDetails{Version: version, VolumeSize: size.String()})
+			}
+		}
 		if len(versions) == 1 && versions[0] == "" {
 			versions = []string{}
 		}
-		images = append(images, clv1alpha1.ImageListItem{Name: name, Versions: versions})
+		images = append(images, clv1alpha1.ImageListItem{Name: name, Versions: versions, VersionDetails: details})
 	}
 	sort.Slice(images, func(i, j int) bool { return images[i].Name < images[j].Name })
 	return images, nil

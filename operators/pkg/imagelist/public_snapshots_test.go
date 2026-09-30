@@ -57,6 +57,7 @@ var _ = Describe("Public snapshot ImageList source", func() {
 	It("publishes the artifact reference without Docker tags or access to snapshot jobs", func() {
 		const resourceName = "desktop-20260925-103000"
 		snapshot := buildPublicSnapshot(namespace, resourceName, "desktop", clv1alpha2.SnapshotPhaseCompleted, namespace, resourceName)
+		snapshot.Status.Artifact.VolumeSize = resource.MustParse("10Gi")
 		// The version comes from the resource name, not the API server's creation time.
 		snapshot.SetCreationTimestamp(metav1.Date(2026, 9, 25, 8, 30, 5, 0, time.UTC))
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(snapshot).Build()
@@ -67,6 +68,7 @@ var _ = Describe("Public snapshot ImageList source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(items).To(Equal([]clv1alpha1.ImageListItem{{
 			Name: "desktop", Versions: []string{"20260925-103000"},
+			VersionDetails: []clv1alpha1.ImageVersionDetails{{Version: "20260925-103000", VolumeSize: "10Gi"}},
 		}}))
 		created := &clv1alpha1.ImageList{}
 		Expect(fakeClient.Get(context.Background(), client.ObjectKey{Name: config.ImageListName}, created)).To(Succeed())
@@ -136,6 +138,7 @@ var _ = Describe("Public snapshot ImageList source", func() {
 	It("reads typed snapshot artifacts and phases over HTTP", func() {
 		const resourceName = "desktop-20260925-103000"
 		snapshot := buildPublicSnapshot(namespace, resourceName, "desktop", clv1alpha2.SnapshotPhaseCompleted, namespace, resourceName)
+		snapshot.Status.Artifact.VolumeSize = resource.MustParse("10Gi")
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet || r.URL.Path != "/apis/crownlabs.polito.it/v1alpha2/namespaces/"+namespace+"/instancesnapshots" {
 				http.NotFound(w, r)
@@ -160,8 +163,63 @@ var _ = Describe("Public snapshot ImageList source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(images).To(Equal([]clv1alpha1.ImageListItem{{
 			Name: "desktop", Versions: []string{"20260925-103000"},
+			VersionDetails: []clv1alpha1.ImageVersionDetails{{Version: "20260925-103000", VolumeSize: "10Gi"}},
 		}}))
 	})
+
+	It("associates each volume size with its version, including unversioned artifacts", func() {
+		older := buildPublicSnapshot(namespace, "desktop-20260924-103000", "desktop", clv1alpha2.SnapshotPhaseCompleted, namespace, "desktop-20260924-103000")
+		older.Status.Artifact.VolumeSize = resource.MustParse("10Gi")
+		newer := buildPublicSnapshot(namespace, "desktop-20260925-103000", "desktop", clv1alpha2.SnapshotPhaseCompleted, namespace, "desktop-20260925-103000")
+		newer.Status.Artifact.VolumeSize = resource.MustParse("20Gi")
+		unversioned := buildPublicSnapshot(namespace, "desktop", "desktop", clv1alpha2.SnapshotPhaseCompleted, namespace, "desktop")
+		unversioned.Status.Artifact.VolumeSize = resource.MustParse("5Gi")
+		alias := buildPublicSnapshot(namespace, "alias", "desktop", clv1alpha2.SnapshotPhaseCompleted, namespace, "desktop")
+		alias.Status.Artifact.VolumeSize = resource.MustParse("4Gi")
+		unknown := buildPublicSnapshot(namespace, "desktop-20260926-103000", "desktop", clv1alpha2.SnapshotPhaseCompleted, namespace, "desktop-20260926-103000")
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(newer, unversioned, unknown, older, alias).Build()
+
+		items, err := imagelist.ProcessSingleRegistryConfigWithItems(context.Background(), config, fakeClient, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(items).To(Equal([]clv1alpha1.ImageListItem{{
+			Name: "desktop", Versions: []string{"20260926-103000", "20260925-103000", "20260924-103000", ""},
+			VersionDetails: []clv1alpha1.ImageVersionDetails{
+				{Version: "20260925-103000", VolumeSize: "20Gi"},
+				{Version: "20260924-103000", VolumeSize: "10Gi"},
+				{Version: "", VolumeSize: "5Gi"},
+			},
+		}}))
+
+		// A subsequent refresh must also remove metadata for a deleted version.
+		Expect(fakeClient.Delete(context.Background(), newer)).To(Succeed())
+		_, err = imagelist.ProcessSingleRegistryConfigWithItems(context.Background(), config, fakeClient, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+		stored := &clv1alpha1.ImageList{}
+		Expect(fakeClient.Get(context.Background(), client.ObjectKey{Name: config.ImageListName}, stored)).To(Succeed())
+		Expect(stored.Spec.Images[0].VersionDetails).To(Equal([]clv1alpha1.ImageVersionDetails{
+			{Version: "20260924-103000", VolumeSize: "10Gi"},
+			{Version: "", VolumeSize: "5Gi"},
+		}))
+	})
+
+	DescribeTable("publishes volume sizes for standalone unversioned artifacts only when known", func(size, expectedSize string) {
+		snapshot := buildPublicSnapshot(namespace, "custom", "desktop", clv1alpha2.SnapshotPhaseCompleted, namespace, "custom")
+		snapshot.Status.Artifact.VolumeSize = resource.MustParse(size)
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(snapshot).Build()
+		items, err := imagelist.ProcessSingleRegistryConfigWithItems(context.Background(), config, fakeClient, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(items).To(HaveLen(1))
+		Expect(items[0].Versions).To(BeEmpty())
+		if expectedSize == "" {
+			Expect(items[0].VersionDetails).To(BeNil())
+		} else {
+			Expect(items[0].VersionDetails).To(Equal([]clv1alpha1.ImageVersionDetails{{Version: "", VolumeSize: expectedSize}}))
+		}
+	},
+		Entry("known size", "10240Mi", "10Gi"),
+		Entry("missing size", "0", ""),
+		Entry("invalid negative size", "-1Gi", ""),
+	)
 
 	It("excludes unfinished, deleting, incomplete and out-of-namespace artifacts", func() {
 		deleting := buildPublicSnapshot(namespace, "deleting", "", clv1alpha2.SnapshotPhaseCompleted, namespace, "deleting")
@@ -292,7 +350,6 @@ func buildPublicSnapshot(namespace, name, imageName string, phase clv1alpha2.Sna
 			Phase: phase,
 			Artifact: clv1alpha2.SnapshotArtifact{
 				DataVolumeRef: clv1alpha2.GenericRef{Name: artifactName, Namespace: artifactNamespace},
-				VolumeSize:    resource.MustParse("10Gi"),
 			},
 		},
 	}

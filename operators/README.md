@@ -586,13 +586,20 @@ spec:
       versions:
         - "20260925-090001"
         - "20260924-103000"
+      versionDetails:
+        - version: "20260925-090001"
+          volumeSize: "20Gi"
+        - version: "20260924-103000"
+          volumeSize: "10Gi"
 ```
+
+`versionDetails` exposes `status.artifact.volumeSize` for each snapshot version as a Kubernetes quantity string. It reports the volume capacity, not the compressed size of a registry image. Match entries by `version`, rather than array index: missing, zero or negative sizes are omitted, and catalogs without this metadata remain valid. Unversioned artifacts use `version: ""`, including when `versions` is empty. Duplicate references to the same artifact produce one entry with the largest reported positive capacity. GraphQL consumers can request `versionDetails { version volumeSize }` once qlkube has reloaded the updated CRD schema.
 
 For this catalog, the frontend must build a `LocalVM` environment with `image = registryName + "/" + name + "-" + selectedVersion`, for example `cldprog-5-block-vms-tests/ubuntu-lab-20260925-090001`. The suffix is copied from `metadata.name`, not inferred from `creationTimestamp` or converted to UTC: #1200 currently uses the creator's local time. Only the final suffix is parsed, so image names may contain hyphens and dates. The prefix in the public namespace defines a catalog image, even if snapshots come from different source instances; `spec.imageName` is a display label and cannot override the artifact identity.
 
 The updater validates the suffix as a real date/time and only splits names when `status.artifact.dataVolumeRef.name` matches the snapshot name. Older/custom names or different artifact names remain available with the full artifact name and `versions: []`; consumers then use `registryName + "/" + name`. If an unversioned artifact coexists with dated versions of the same name, an empty-string version identifies that unversioned choice. No creation dates or artifact names are invented, and duplicate choices are removed.
 
-Keep this catalog separate from Docker/Harbor catalogs in the frontend: local versions use a hyphen when reconstructing the PVC name, while registry images retain their existing tag handling. No ImageList CRD, RBAC or chart changes are required: enable the source through the existing configuration after updating the operator binary, using a distinct `imageListName`. For `public-snapshots`, the saved `registryName` is always the configured namespace, regardless of any legacy registry settings, and `projectBaseName` is empty. The public registry picker in #1200 still needs to consume this ImageList; this change is limited to the updater.
+Keep this catalog separate from Docker/Harbor catalogs in the frontend: local versions use a hyphen when reconstructing the PVC name, while registry images retain their existing tag handling. Apply the updated ImageList CRD before updating the operator, then restart qlkube so it reloads the schema and exposes `versionDetails`. No RBAC or chart changes are required: enable the source through the existing configuration, using a distinct `imageListName`. For `public-snapshots`, the saved `registryName` is always the configured namespace, regardless of any legacy registry settings, and `projectBaseName` is empty. The public registry picker in #1200 still needs to consume this ImageList.
 
 Only completed, non-deleting snapshots with a complete artifact reference in the configured namespace are included. An empty source clears stale entries; a failed list request leaves the existing catalog intact. The updater only needs read access to InstanceSnapshots and get/list/watch/create/update access to ImageLists. It does not need snapshot status writes or DataVolume permissions. The existing operator ClusterRole already grants these permissions and is unchanged. The existing Docker, Harbor and legacy `instancesnapshot` sources, tag processing and RBAC remain unchanged; the new source writes a separate ImageList and does not query or replace those catalogs.
 
