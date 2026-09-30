@@ -147,6 +147,7 @@ operator:
   webhook:
     deployment:
       webhookBypassGroups: system:masters,system:serviceaccounts,kubernetes:admin
+      snapshotWebhookBypassGroups: system:masters,kubernetes:admin
       baseWorkspaces: utilities
     enableMutating: true
     enableValidating: true

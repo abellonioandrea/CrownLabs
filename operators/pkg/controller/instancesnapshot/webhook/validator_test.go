@@ -142,6 +142,10 @@ var _ = Describe("InstanceSnapshotValidator", func() {
 			Entry("When the requester belongs to a bypass group", CreateCase{
 				Username: testTenant, Groups: []string{testBypassGroup}, SourceNamespace: testOtherTenantNamespace,
 			}),
+			Entry("When a bypass group publishes into the public catalog", CreateCase{
+				Username: testTenant, Groups: []string{testBypassGroup},
+				SourceNamespace: testOtherTenantNamespace, Destination: testPublicNamespace,
+			}),
 		)
 	})
 

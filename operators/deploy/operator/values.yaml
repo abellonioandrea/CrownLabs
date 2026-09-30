@@ -120,7 +120,7 @@ webhook:
   deployment:
     certsMount: /tmp/k8s-webhook-server/serving-certs/
     webhookBypassGroups: system:masters,system:serviceaccounts,kubernetes:admin
-    snapshotWebhookBypassGroups: system:masters
+    snapshotWebhookBypassGroups: system:masters,kubernetes:admin
     baseWorkspaces: utilities
   enableMutating: false
   enableValidating: false
