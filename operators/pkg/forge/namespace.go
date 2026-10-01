@@ -27,7 +27,7 @@ import (
 
 // DefaultPublicSnapshotNamespace is the default namespace for publicly readable snapshot artifacts.
 // Deployments can override it through the operator's snapshot-public-namespace flag.
-const DefaultPublicSnapshotNamespace = "public-local-snapshots"
+const DefaultPublicSnapshotNamespace = "crownlabs-public-snapshots"
 
 // WorkspaceNamespaceName returns the name of the namespace hosting the resources of the workspace
 // with the given name.

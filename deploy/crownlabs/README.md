@@ -32,7 +32,7 @@ In particular, this operation can be completed creating a copy of the [default c
 
 The main operator runs the snapshot controller when `operator.configurations.features.instanceSnapshot: true`. Snapshot and LocalVM admission checks also require `operator.configurations.features.webhooks: true` and `operator.webhook.enableValidating: true`; all three are enabled in the umbrella chart. Install the updated [InstanceSnapshot CRD](../../operators/deploy/crds/crownlabs.polito.it_instancesnapshots.yaml) before upgrading, and ensure CDI and the storage backend can clone the source PVCs.
 
-The public snapshot namespace defaults to `public-local-snapshots`, inherited from the operator subchart. Override `operator.configurations.snapshotPublicNamespace` in your deployment values to change it. The operator's admission checks and the public snapshot publisher RoleBinding use this same value.
+The public snapshot namespace defaults to `crownlabs-public-snapshots`, inherited from the operator subchart. Override `operator.configurations.snapshotPublicNamespace` in your deployment values to change it. The operator's admission checks and the public snapshot publisher RoleBinding use this same value.
 
 Create the destination namespace and give it the label configured by `operator.configurations.targetLabel` so the validating webhooks cover it. Setting the public namespace value alone does not provision the namespace or its labels.
 

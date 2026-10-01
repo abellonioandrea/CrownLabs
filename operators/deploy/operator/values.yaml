@@ -30,7 +30,7 @@ configurations:
     compatibilityMode: false
   mydrivePVCsSize: 1Gi
   # Namespace hosting the public snapshot catalog. Volumes stored here can be read by every tenant.
-  snapshotPublicNamespace: "public-local-snapshots"
+  snapshotPublicNamespace: "crownlabs-public-snapshots"
   # Keycloak group whose members can publish snapshots into the public catalog. Leave empty to let
   # only the snapshot webhook bypass groups do it.
   snapshotPublisherGroup: "kubernetes:image-publisher"

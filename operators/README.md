@@ -537,7 +537,7 @@ apiVersion: crownlabs.polito.it/v1alpha2
 kind: InstanceSnapshot
 metadata:
   name: ubuntu-lab-snapshot
-  namespace: public-local-snapshots
+  namespace: crownlabs-public-snapshots
   labels:
     crownlabs.polito.it/tenant: mario
 spec:
@@ -572,7 +572,7 @@ status:
   artifact:
     dataVolumeRef:
       name: ubuntu-lab-snapshot
-      namespace: public-local-snapshots
+      namespace: crownlabs-public-snapshots
     volumeSize: 20Gi
 ```
 
@@ -599,7 +599,7 @@ Membership in `snapshotWebhookBypassGroups` skips the snapshot webhook's creatio
 
 ### Public snapshot namespace
 
-The public snapshot catalog uses `public-local-snapshots` by default. The Go default is defined by `forge.DefaultPublicSnapshotNamespace` in [namespace.go](pkg/forge/namespace.go) and can be overridden with `--snapshot-public-namespace`.
+The public snapshot catalog uses `crownlabs-public-snapshots` by default. The Go default is defined by `forge.DefaultPublicSnapshotNamespace` in [namespace.go](pkg/forge/namespace.go) and can be overridden with `--snapshot-public-namespace`.
 
 For Helm deployments, set `configurations.snapshotPublicNamespace` in the operator chart, or `operator.configurations.snapshotPublicNamespace` in the umbrella chart. The umbrella chart inherits the default from the operator subchart. This value is passed to the operator's snapshot and instance admission checks and determines the namespace of the public snapshot publisher RoleBinding.
 
@@ -617,7 +617,7 @@ operator:
       instanceSnapshot: true
       instance: true
       webhooks: true
-    snapshotPublicNamespace: public-local-snapshots
+    snapshotPublicNamespace: crownlabs-public-snapshots
     snapshotPublisherGroup: kubernetes:image-publisher
   webhook:
     enableValidating: true
@@ -630,7 +630,7 @@ The umbrella chart already enables these webhooks. The standalone operator chart
 | CLI flag | Binary default | Helm default |
 | --- | --- | --- |
 | `--enable-instancesnapshot` | `true` | `true` |
-| `--snapshot-public-namespace` | `public-local-snapshots` | `public-local-snapshots` |
+| `--snapshot-public-namespace` | `crownlabs-public-snapshots` | `crownlabs-public-snapshots` |
 | `--snapshot-publisher-group` | Empty | `kubernetes:image-publisher` |
 | `--snapshot-webhook-bypass-groups` | `system:masters` | `system:masters,kubernetes:admin` |
 
@@ -638,7 +638,7 @@ Install the updated InstanceSnapshot CRD before upgrading the operator, and ensu
 
 ### Starting instances from a snapshot
 
-Use a completed artifact as a Template environment with `environmentType: LocalVM` and `image: <artifact-namespace>/<artifact-name>`. For the example above, the image is `public-local-snapshots/ubuntu-lab-snapshot`. The instance controller creates a new DataVolume cloned from that PVC.
+Use a completed artifact as a Template environment with `environmentType: LocalVM` and `image: <artifact-namespace>/<artifact-name>`. For the example above, the image is `crownlabs-public-snapshots/ubuntu-lab-snapshot`. The instance controller creates a new DataVolume cloned from that PVC.
 
 The instance webhook validates LocalVM sources on Instance creation and when changing a stopped Instance to running:
 
@@ -653,9 +653,9 @@ The bypass groups skip namespace and artifact-label authorization checks, but PV
 Inspect the snapshot, its events, and its DataVolume/PVC in the destination namespace:
 
 ```bash
-kubectl get isnap -n public-local-snapshots
-kubectl describe isnap ubuntu-lab-snapshot -n public-local-snapshots
-kubectl get datavolume,pvc ubuntu-lab-snapshot -n public-local-snapshots
+kubectl get isnap -n crownlabs-public-snapshots
+kubectl describe isnap ubuntu-lab-snapshot -n crownlabs-public-snapshots
+kubectl get datavolume,pvc ubuntu-lab-snapshot -n crownlabs-public-snapshots
 ```
 
 | Symptom or event | Meaning |
