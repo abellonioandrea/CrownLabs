@@ -28,6 +28,18 @@ Once the CRDs have been correctly installed, it is possible to deploy CrownLabs.
 First, it is necessary to configure the different parameters (e.g. number of replicas, URLs, credentials, ...), depending on the specific set-up.
 In particular, this operation can be completed creating a copy of the [default configuration](values.yaml), and customizing it with the suitable values.
 
+### Instance snapshots
+
+The main operator runs the snapshot controller when `operator.configurations.features.instanceSnapshot: true`. Snapshot and LocalVM admission checks also require `operator.configurations.features.webhooks: true` and `operator.webhook.enableValidating: true`; all three are enabled in the umbrella chart. Install the updated [InstanceSnapshot CRD](../../operators/deploy/crds/crownlabs.polito.it_instancesnapshots.yaml) before upgrading, and ensure CDI and the storage backend can clone the source PVCs.
+
+The public snapshot namespace defaults to `public-local-snapshots`, inherited from the operator subchart. Override `operator.configurations.snapshotPublicNamespace` in your deployment values to change it. The operator's admission checks and the public snapshot publisher RoleBinding use this same value.
+
+Create the destination namespace and give it the label configured by `operator.configurations.targetLabel` so the validating webhooks cover it. Setting the public namespace value alone does not provision the namespace or its labels.
+
+Publishing is controlled by `operator.configurations.snapshotPublisherGroup` (default `kubernetes:image-publisher`) and `operator.webhook.deployment.snapshotWebhookBypassGroups` (default `system:masters,kubernetes:admin`). The publisher group's RoleBinding grants snapshot creation only in the public namespace. Bypass groups skip creation authorization checks but still need Kubernetes RBAC permissions.
+
+Clients must identify the creator through the immutable `crownlabs.polito.it/tenant` label instead of the former `spec.tenantRef` field. See the [InstanceSnapshot controller documentation](../../operators/README.md#crownlabs-instancesnapshot-controller) for resource examples, lifecycle, LocalVM disk-size checks and troubleshooting.
+
 ### Gateway API & Routing Configuration
 
 CrownLabs uses **Envoy Gateway** implementing the Kubernetes Gateway API (`gateway.networking.k8s.io/v1`) for L7 traffic routing and authentication.
