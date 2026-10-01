@@ -13,7 +13,7 @@ configurations:
     pmp: false
     keycloak: true
     webhooks: false
-    imageList: true
+    imageList: false
 
   # Static labels added to tenant namespaces, after the chart prepends targetLabel.
   tenantNamespaceCommonLabels: crownlabs.polito.it/gw-access=crownlabs-main-production,crownlabs.polito.it/instance-resources-replication=true
@@ -29,8 +29,8 @@ configurations:
     compatibilityMode: false
   mydrivePVCsSize: 1Gi
   # Namespace hosting the public snapshot catalog. Volumes stored here can be read by every tenant.
-  # TODO: replace with the production catalog namespace before merging.
-  snapshotPublicNamespace: "cldprog-5-block-vms-tests"
+  # Also used by public-snapshots ImageList sources that omit namespace.
+  snapshotPublicNamespace: "public-local-snapshots"
   mydrivePVCsStorageClassName: rook-nfs
   mydrivePVCsNamespace: mydrive-pvcs
 
@@ -57,27 +57,22 @@ configurations:
     configFile: /etc/config/registries.yaml
     updateInterval: 600
     registries:
-      - name: harbor-registry-standalone
-        type: harbor
-        url: http://harbor-core.harbor:80
-        registryName: harbor.ng.crownlabs.polito.it
-        username: ""
-        password: ""
-        imageListName: harbor-standalone
-        project: crownlabs-standalone
-      - name: harbor-registry-containerdisks
-        type: harbor
-        url: http://harbor-core.harbor:80
-        registryName: harbor.ng.crownlabs.polito.it
-        username: ""
-        password: ""
-        imageListName: harbor-containerdisks
-        project: crownlabs-containerdisks
-      - name: snapshots-workspace
-        # Read completed snapshots from their DataVolume artifacts in this namespace.
-        type: public-snapshots
-        namespace: cldprog-5-block-vms-tests
-        imageListName: public-local-snapshots
+        - name: harbor-registry-standalone
+          type: harbor
+          url: http://harbor-core.harbor:80
+          registryName: harbor.ng.crownlabs.polito.it
+          username: ""
+          password: ""
+          imageListName: harbor-standalone
+          project: crownlabs-standalone
+        - name: harbor-registry-containerdisks
+          type: harbor
+          url: http://harbor-core.harbor:80
+          registryName: harbor.ng.crownlabs.polito.it
+          username: ""
+          password: ""
+          imageListName: harbor-containerdisks
+          project: crownlabs-containerdisks
 
   pvcMirrorProvisioner:
     provisionerName: pmp.crownlabs.polito.it

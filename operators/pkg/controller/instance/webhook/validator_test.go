@@ -301,7 +301,7 @@ var _ = Describe("InstanceValidator", func() {
 	})
 
 	Context("LocalVM PVC Access Validation", func() {
-		const publicSnapshotNamespace = "cldprog-5-block-vms-tests"
+		const publicSnapshotNamespace = forge.DefaultPublicSnapshotNamespace
 
 		var (
 			tenant          *clv1alpha2.Tenant

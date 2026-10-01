@@ -6,5 +6,5 @@ This section of the documentation presents the possible configuration options fo
 - [Explicit selection of the target node](node-selection.md) (bypassing the default scheduling rules)
 - [Defining quotas per workspace and per user](resource-quota.md)
 - [Enabling automatic deletion of instances](inactivity-expiration-instance.md)
-
+- [Configuring ImageList sources and public snapshot catalogs](../README.md#crownlabs-image-list-updater)
 
