@@ -77,7 +77,7 @@ configurations:
   pvcMirrorProvisioner:
     provisionerName: pmp.crownlabs.polito.it
     storageClass:
-      name: pvc-mirror
+      name: pvc-mirrorcrownlabs-public-snapshots
       deploy: false
 
 image:

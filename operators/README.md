@@ -568,10 +568,10 @@ The `public-snapshots` source reads `InstanceSnapshot` resources (`crownlabs.pol
 
 #### Source configuration
 
-Add a source under `configurations.imageList.registries` (under `operator` in the umbrella chart). In Helm values, omit `namespace` to inherit `configurations.snapshotPublicNamespace`:
+Add a socrownlabs-public-snapshotsions.imageList.registries` (under `operator` in the umbrella chart). In Helm values, omit `namespace` to inherit `configurations.snapshotPublicNamespace`:
 
 ```yaml
-- name: snapshots-workspace
+- name: snapshotscrownlabs-public-snapshots
   type: public-snapshots
   imageListName: public-local-snapshots
 ```
